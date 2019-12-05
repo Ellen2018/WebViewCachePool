@@ -129,6 +129,9 @@ public class WebViewCachePool {
         if (parent != null) {
             parent.removeView(webView);
         }
+        //清理缓存(要是不清理，占用的内存只会越来越大，最终导致OOM)
+        webView.clearHistory();
+        webView.clearCache(true);
     }
 
     private WebView getCanUseWebView(){
