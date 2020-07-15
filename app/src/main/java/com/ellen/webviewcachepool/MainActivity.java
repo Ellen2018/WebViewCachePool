@@ -30,6 +30,13 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         //回收或者销毁当前WebView
-        WebViewCachePool.getInstance(this).destroy(webView,null);
+
+        //存在js交互的销毁
+        //String jsName = "js_interface";//js交互名字
+        //WebViewCachePool.getInstance(this).destroy(webView,jsName);
+
+        //不存在js交互的销毁
+        WebViewCachePool.getInstance(this).destroy(webView);
+
     }
 }
