@@ -30,6 +30,6 @@ public class MainActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         //回收或者销毁当前WebView
-        WebViewCachePool.getInstance(this).destory(webView,null);
+        WebViewCachePool.getInstance(this).destroy(webView,null);
     }
 }

@@ -38,12 +38,15 @@ public class WebViewCachePool {
 
     private WeakReference<Context> contextWeakReference;
 
-    private WebViewCachePool(){}
+    private AutoWebView autoWebView;
 
-    public static WebViewCachePool getInstance(Context context){
-        if(webViewCachePool == null){
-            synchronized (WebViewCachePool.class){
-                if(webViewCachePool == null) {
+    private WebViewCachePool() {
+    }
+
+    public static WebViewCachePool getInstance(Context context) {
+        if (webViewCachePool == null) {
+            synchronized (WebViewCachePool.class) {
+                if (webViewCachePool == null) {
                     webViewCachePool = new WebViewCachePool();
                     //绑定应用上下文
                     webViewCachePool.contextWeakReference = new WeakReference<>(context.getApplicationContext());
@@ -53,11 +56,18 @@ public class WebViewCachePool {
         return webViewCachePool;
     }
 
-    public WebView getWebView(){
+    public void setAutoWebView(AutoWebView autoWebView) {
+        this.autoWebView = autoWebView;
+        if(this.autoWebView != null){
+            maxWebViewCount = this.autoWebView.maxSize();
+        }
+    }
+
+    public WebView getWebView() {
         WebView canUseWebView = getCanUseWebView();
-        if(usedWebViewList == null){
+        if (usedWebViewList == null) {
             //说明是第一次获取
-            if(usedWebViewList == null){
+            if (usedWebViewList == null) {
                 usedWebViewList = new Vector<>();
             }
         }
@@ -66,31 +76,35 @@ public class WebViewCachePool {
         return canUseWebView;
     }
 
-    public void destory(WebView webView,String jsName){
+    public void destroy(WebView webView) {
+        destroy(webView, null);
+    }
+
+    public void destroy(WebView webView, String jsName) {
         usedWebViewList.remove(webView);
-        if(recyclerWebViewList == null){
+        if (recyclerWebViewList == null) {
             recyclerWebViewList = new Vector<>();
         }
-        if(getAllWebViewSize() >= maxWebViewCount && maxWebViewCount >= 0){
+        if (getAllWebViewSize() >= maxWebViewCount && maxWebViewCount >= 0) {
             //不能进行复用了，达到最大数目
             //将WebView进行完全回收
-            destoryWebView(webView);
-        }else {
+            destroyWebView(webView);
+        } else {
             //只是将WebView进行初始化状态
-            initWebViewAndUse(webView,jsName);
+            initWebViewAndUse(webView, jsName);
             recyclerWebViewList.add(webView);
         }
     }
 
-    private int getAllWebViewSize(){
+    private int getAllWebViewSize() {
         int size = 0;
-        if(usedWebViewList != null){
+        if (usedWebViewList != null) {
             size = size + usedWebViewList.size();
         }
-        if(readyWebViewList != null){
+        if (readyWebViewList != null) {
             size = size + readyWebViewList.size();
         }
-        if(recyclerWebViewList != null){
+        if (recyclerWebViewList != null) {
             size = size + recyclerWebViewList.size();
         }
         return size;
@@ -98,9 +112,10 @@ public class WebViewCachePool {
 
     /**
      * 完全销毁WebView
+     *
      * @param webView
      */
-    private void destoryWebView(WebView webView){
+    private void destroyWebView(WebView webView) {
         webView.loadDataWithBaseURL(null, "", "text/html", "utf-8", null);
         webView.stopLoading();
         ViewGroup parent = (ViewGroup) webView.getParent();
@@ -116,15 +131,16 @@ public class WebViewCachePool {
 
     /**
      * 只是将WebView设置为可重用状态
+     *
      * @param webView
      * @param jsName
      */
-    private void initWebViewAndUse(WebView webView,String jsName){
+    private void initWebViewAndUse(WebView webView, String jsName) {
         webView.loadUrl("");
         webView.setWebChromeClient(null);
         webView.setWebViewClient(null);
-        if(jsName != null)
-        webView.removeJavascriptInterface(jsName);
+        if (jsName != null)
+            webView.removeJavascriptInterface(jsName);
         ViewGroup parent = (ViewGroup) webView.getParent();
         if (parent != null) {
             parent.removeView(webView);
@@ -134,23 +150,27 @@ public class WebViewCachePool {
         webView.clearCache(true);
     }
 
-    private WebView getCanUseWebView(){
+    /**
+     * 获取到能够被使用的WebView
+     * @return
+     */
+    private WebView getCanUseWebView() {
         WebView canUseWebView = null;
         //先使用复用集合的
-        if(recyclerWebViewList == null || recyclerWebViewList.size() == 0){
+        if (recyclerWebViewList == null || recyclerWebViewList.size() == 0) {
             //说明复用集合里没有能够复用的WebView,那就只能进行制造
-            if(readyWebViewList == null || readyWebViewList.size() == 0){
+            if (readyWebViewList == null || readyWebViewList.size() == 0) {
                 canUseWebView = initWebSetting(createWebView());
-                if(readyWebViewList == null){
+                if (readyWebViewList == null) {
                     readyWebViewList = new Vector<>();
                 }
                 readyWebViewList.add(initWebSetting(createWebView()));
-            }else {
+            } else {
                 canUseWebView = readyWebViewList.get(0);
                 readyWebViewList.remove(0);
                 readyWebViewList.add(initWebSetting(createWebView()));
             }
-        }else {
+        } else {
             //能够进行复用
             canUseWebView = recyclerWebViewList.get(0);
             recyclerWebViewList.remove(0);
@@ -158,9 +178,13 @@ public class WebViewCachePool {
         return canUseWebView;
     }
 
-    private WebView createWebView(){
-        //如果使用者需要new一个自定义的WebView,要么直接改掉这里的代码，要么使用Callback形式再封装一下
-        WebView webView = new WebView(contextWeakReference.get());
+    private WebView createWebView() {
+        WebView webView;
+        if(autoWebView == null) {
+             webView = new WebView(contextWeakReference.get());
+        }else {
+            webView = autoWebView.getNewWebView(contextWeakReference.get());
+        }
         return webView;
     }
 
@@ -174,8 +198,6 @@ public class WebViewCachePool {
         webView.setBackgroundColor(ContextCompat.getColor(contextWeakReference.get(), android.R.color.transparent));
         webView.setBackgroundColor(Color.parseColor("#ffffff"));
 
-        //这里是加的
-        webSettings.setJavaScriptEnabled(true);
         // init webview settings
         webSettings.setAllowContentAccess(true);
         webSettings.setDatabaseEnabled(true);
@@ -200,6 +222,6 @@ public class WebViewCachePool {
             webSettings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
         webSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        return  webView;
+        return webView;
     }
 }
